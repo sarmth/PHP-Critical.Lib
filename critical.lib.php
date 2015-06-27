@@ -24,6 +24,34 @@ class Common {
 	}
 	
 }
+class Template {
+	public static $templateComponents;
+	public static function addComponent($tag, $value) {
+		if (isset(Template::$templateComponents[$tag])) 
+			Template::$templateComponents[$tag] .= $value;
+		else
+			Template::$templateComponents[$tag] = $value;
+	}
+	public static function output($file = null) {
+		if(!empty($file)) {
+			if (file_exists($file)) {
+				$f = fopen($file, 'R');
+				$fconts = fread($f, filesize($file));
+			}
+		} else {
+			//	Use default file.
+			$file = _ROOT . "templates/default.tpl";
+			if (file_exists($file)) {
+				$f = fopen($file, 'R');
+				$fconts = fread($f, filesize($file));
+			}
+		}
+		foreach (Template::$templateComponents AS $tag=>$value) {
+			$fconts = str_replace($tag, $value, $fconts);
+		}
+		echo $fconts;	//	Output Data
+	}
+}
 class Database {
 /**
 *	This class handles all database functions.
@@ -158,8 +186,45 @@ class Database {
 		
 			return $this;
 	}
+	public function _set($tableAndCol, $oldVal, $newVal, $id = 0) {
+		$idConstruct = "";
+		if (!empty($id))
+			$idConstruct = "AND `id` = '" . $id . "'";
+		
+		$table = explode(".", $tableAndCol);
+		$this->query("UPDATE " . $table[0] . " SET " . $table[1] . " = '" . $this->string($newVal) . "' WHERE " . $table[1] . " = '" . $this->string($oldVal) . "' " . $idConstruct);
+		
+		return $this;
+	}
+	public function _unset($tableAndCol, $value) {
+		$table = explode(".", $tableAndCol);
+		$this->query("DELETE FROM " . $table[0] . " WHERE " . $table[1] . " = " . $this->string($value));
+	}
 	public function insert($table, $values){
-		mysqli_query($this->connection, "INSERT INTO `{$table}` VALUES({$values});") or Common::error(mysqli_error($this->connection));
+		var_dump($values);
+		if (is_array($values)) {
+			$vConstruct = "";
+			foreach($values AS $v) {
+				$vConstruct .= (empty($vConstruct) ? null : ",") . "'" . $this->string($v) . "'";	//	Add Protection to values.
+			}
+			var_dump($vConstruct);
+			$this->query("INSERT INTO `{$table}` VALUES('',{$vConstruct});");			
+		} else {
+			$this->query("INSERT INTO `{$table}` VALUES('',{$values});");
+		}
+	}
+	public function import($table, $data) {
+		if (is_array($data)) {
+			$vConstruct = "";
+			foreach($data AS $row) {
+				$r = "''";
+				foreach($row as $v)
+				$r .= ",'" . $this->string($v) . "'";	//	Add Protection to values.
+				
+				$vConstruct .= (empty($vConstruct) ? null : ",") . "(" . $r . ")";	//	Add Protection to values.
+			}
+			var_dump($vConstruct);
+		}
 	}
 	public function debug() {
 		echo "<hr><h2>Debug Information</h2>" . $this->debugLog . "<hr>" . $this->errorLog;
