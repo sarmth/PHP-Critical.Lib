@@ -142,28 +142,45 @@ class RESTful
 		RESTful::_PUSH();
 		RESTful::_DELETE();
 	}
+	
+	public static function addListener($type, $requestName, $function)
+	{
+		if($type == "POST" || $type == "GET" || $type == "DELETE" || $type == "PUSH")
+			RESTful::$listeners[$type][$requestName] = $function;
+	}
 	private static function _GET(){
+		if(!isset(RESTful::$listeners['GET']))
+			return;
 		foreach (RESTful::$listeners['GET'] AS $requestName=>$function) {
 			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
-				call_user_method($function);	//	Execute relevant method for this action.
+				call_user_func($function);	//	Execute relevant method for this action.
 		}
 	}
 	private static function _POST(){
+		if(!isset(RESTful::$listeners['POST']))
+			return;
+		if(!isset($_POST))
+			return;
+		
 		foreach (RESTful::$listeners['POST'] AS $requestName=>$function) {
-			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
-				call_user_method($function);	//	Execute relevant method for this action.
+			if (strtolower($_GET['act']) == strtolower($requestName))	//	Verify which action is being used.
+				call_user_func($function);	//	Execute relevant method for this action.
 		}
 	}
 	private static function _PUSH(){
+		if(!isset(RESTful::$listeners['PUSH']))
+			return;
 		foreach (RESTful::$listeners['PUSH'] AS $requestName=>$function) {
 			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
-				call_user_method($function);	//	Execute relevant method for this action.
+				call_user_func($function);	//	Execute relevant method for this action.
 		}
 	}
 	private static function _DELETE(){
+		if(!isset(RESTful::$listeners['DELETE']))
+			return;
 		foreach (RESTful::$listeners['DELETE'] AS $requestName=>$function) {
 			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
-				call_user_method($function);	//	Execute relevant method for this action.
+				call_user_func($function);	//	Execute relevant method for this action.
 		}
 	}
 }
@@ -264,14 +281,14 @@ class Database
 		$query = mysqli_query($this->connection, "SELECT * FROM `" . $this->string($table) . "` {$j} {$w}");
 		return mysqli_fetch_array($query);
 	}
-	public function _get($expression, $value, $col = null) {
+	public function _get($expression, $value = null, $col = null) {
 		//	Perform a minimal Simplistic MySQL Query with Return values added to the current object.
 		//	This function works in conjunction with Daiseychaining.
 		//	Clear existing gotten data.
-		$this->field="";
+		$this->field = "";
 		$e = explode(",", $expression);
 		$multiple = false;
-		if(count($e)>1)
+		if (count($e) > 1)
 			$multiple = true;
 		
 		if (stripos($expression,".") === false) {
@@ -292,6 +309,9 @@ class Database
 		} else {
 			//	DB DATA QUERY BASED ON ID.
 			$value = $this->string($value);	//	Add inherant protection.
+			if(empty($value))
+			$query = "SELECT {$expression} FROM " . $e1[0][0] . " ORDER BY `id` DESC LIMIT 100";
+				else
 			$query = "SELECT {$expression} FROM " . $e1[0][0] . " WHERE `" . (!empty($col) ? $col : 'id') . "` = '{$value}'";
 
 			$q = mysqli_query($this->connection, $query) OR Common::error(mysqli_error($this->connection));
@@ -300,11 +320,10 @@ class Database
 		while($row = mysqli_fetch_array($q)) {
 			$data[] = $row;
 		}
+		if(empty($data))
+			return $this;
 		//var_dump($data);
-		if(count($data) > 1)
-			$this->field = array("values"=>$data);
-		else
-			$this->field = $data[0];
+			$this->field = array_merge((array)$data[0],array("values"=>$data));
 		
 			return $this;
 	}
@@ -323,13 +342,13 @@ class Database
 		$this->query("DELETE FROM " . $table[0] . " WHERE " . $table[1] . " = " . $this->string($value));
 	}
 	public function insert($table, $values){
-		var_dump($values);
+		//var_dump($values);
 		if (is_array($values)) {
 			$vConstruct = "";
 			foreach($values AS $v) {
 				$vConstruct .= (empty($vConstruct) ? null : ",") . "'" . $this->string($v) . "'";	//	Add Protection to values.
 			}
-			var_dump($vConstruct);
+			//var_dump($vConstruct);
 			$this->query("INSERT INTO `{$table}` VALUES('',{$vConstruct});");			
 		} else {
 			$this->query("INSERT INTO `{$table}` VALUES('',{$values});");
