@@ -7,6 +7,68 @@
 *	by using various different programming methods such as daiseychaining, and Object Oriented PHP.
 *	
 */
+//namespace criticalLib;
+
+class System {
+	/**
+	*	This system class handles dynamic actionhooks and pages called by ?p=PageShort.
+	*	
+	*/	
+	public static $actionHooks;
+	public static $pages;
+	public static function addHook($hook, $function) {
+			System::$actionHooks[$hook][] = $function;
+	}
+	public static function init() {
+		//	Start the system.
+		if(isset(System::$actionHooks["init"]))
+		foreach (System::$actionHooks["init"] AS $func) {
+			call_user_func($func);
+		}
+		//	NEXT
+		if(isset(System::$actionHooks["execute"]))
+		foreach (System::$actionHooks["execute"] AS $func) {
+			call_user_func($func);
+		}
+		//	NEXT
+		if(isset(System::$actionHooks["header"]))
+		foreach (System::$actionHooks["header"] AS $func) {
+			call_user_func($func);
+		}
+		//	NEXT
+		if(isset(System::$actionHooks["output"]))
+		foreach (System::$actionHooks["output"] AS $func) {
+			call_user_func($func);
+		}
+		//	Execute Pages.
+		if (isset($_GET['_p']) && !empty($_GET['_p'])) {
+			$called = false;
+			foreach(System::$pages[$_GET['_p']] AS $func) {
+				call_user_func($func);
+				$called = true;
+			}
+			if (!$called) {
+				//	Error 404, undefined page.
+				header("HTTP/1.0 404 Not Found");
+				if (function_exists("error404")) {
+					call_user_func("error404");
+				} else {
+					Template::addComponent("body", "<h1>Page Not Found</h1><strong style='margin-left: 32px;'>" . $_SERVER['REQUEST_URI'] . "</strong><p>The page you have requested has moved or doesn't exist. If you believe this to be an error, please contact the webmaster of this website.</p>");
+					Template::addComponent("header", "<div style='font-size: 36px; text-align: center;'>Error 404!</div>");
+				}
+			}
+		} else {
+			if (isset(System::$pages['default'])) {
+				foreach(System::$pages['default'] AS $func) {
+					call_user_func($func);
+				}
+			}
+		}
+	}
+	public static function addPage($slug, $function) {
+		System::$pages[$slug][] = $function;
+	}
+}
 class Common {
 	public static $username;
 	public static $id;
@@ -20,39 +82,94 @@ class Common {
 		}
 	}
 	public static function error($additionals) {
-		print_r(var_dump(debug_backtrace()) . var_dump(error_get_last()) . var_dump($additionals));
+		var_dump(debug_backtrace());
+		var_dump(error_get_last());
+		var_dump($additionals);
 	}
 	
 }
 class Template {
-	public static $templateComponents;
+	private static $templateComponents;
+	private static $currentFile;
 	public static function addComponent($tag, $value) {
 		if (isset(Template::$templateComponents[$tag])) 
 			Template::$templateComponents[$tag] .= $value;
 		else
 			Template::$templateComponents[$tag] = $value;
 	}
+	public static function changeFile($file) {
+		if (file_exists($file))
+			Template::$currentFile = $file;
+		else {
+			common::error();
+			die('Unable to change current file to ' . $file);
+			}
+	}
 	public static function output($file = null) {
 		if(!empty($file)) {
 			if (file_exists($file)) {
 				$f = fopen($file, 'R');
 				$fconts = fread($f, filesize($file));
-			}
+			} else
+				die($file . " Doesn't exist.");
+			
 		} else {
-			//	Use default file.
-			$file = _ROOT . "templates/default.tpl";
+			if (!empty(Template::$currentFile))
+				$file = Template::$currentFile;
+			else
+				$file = _ROOT . "templates/default.tpl";	//	Use default file.
+			
 			if (file_exists($file)) {
-				$f = fopen($file, 'R');
+				$f = fopen($file, 'r');
 				$fconts = fread($f, filesize($file));
-			}
+			} else
+				die($file . " Doesn't exist.");
 		}
 		foreach (Template::$templateComponents AS $tag=>$value) {
-			$fconts = str_replace($tag, $value, $fconts);
+			$fconts = str_replace("{{" . $tag . "}}", $value, $fconts);
 		}
 		echo $fconts;	//	Output Data
 	}
 }
-class Database {
+
+class RESTful
+{
+	private static $listeners = array();	//	Store ALL REST listeners within this array.
+	public static function processRequests()
+	{
+		RESTful::_GET();
+		RESTful::_POST();
+		RESTful::_PUSH();
+		RESTful::_DELETE();
+	}
+	private static function _GET(){
+		foreach (RESTful::$listeners['GET'] AS $requestName=>$function) {
+			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
+				call_user_method($function);	//	Execute relevant method for this action.
+		}
+	}
+	private static function _POST(){
+		foreach (RESTful::$listeners['POST'] AS $requestName=>$function) {
+			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
+				call_user_method($function);	//	Execute relevant method for this action.
+		}
+	}
+	private static function _PUSH(){
+		foreach (RESTful::$listeners['PUSH'] AS $requestName=>$function) {
+			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
+				call_user_method($function);	//	Execute relevant method for this action.
+		}
+	}
+	private static function _DELETE(){
+		foreach (RESTful::$listeners['DELETE'] AS $requestName=>$function) {
+			if ($_GET['act'] == strtolower($requestName))	//	Verify which action is being used.
+				call_user_method($function);	//	Execute relevant method for this action.
+		}
+	}
+}
+
+class Database
+{
 /**
 *	This class handles all database functions.
 */
@@ -73,6 +190,11 @@ class Database {
 		else
 			return false;
 		//throw new Exception("$name does not exists");
+	}
+	
+	public function _clone($returnVar) {
+		$returnVar = clone $this;
+		return $this;
 	}
 	public function __construct($parameters = null) {
 		if (isset($parameters)) {
@@ -231,5 +353,3 @@ class Database {
 		return $this;
 	}
 }
-
-?>
